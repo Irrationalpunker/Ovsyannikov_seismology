@@ -45,8 +45,8 @@ class Calculation:
     def Inverse_task(self, stations : [Station] , picks : [Picks]):
         data = {
             'station' : [],
-            'lon' : [],
             'lat' : [],
+            'lon' : [],
             'P_time':[],
             'S_time':[]
         }
@@ -75,13 +75,35 @@ class Calculation:
             mean_lat += df.iloc[i]['lat'] * (cls_time / df.iloc[i]['P_time'])
         mean_lat = mean_lat/len(df)
         mean_lon = mean_lon / len(df)
-        initial_guess = (mean_lon, mean_lat)
-        print(initial_guess)
-        #Ура у нас есть начальное предположение для метода нименьших квадратов
+        initial_guess = (mean_lat, mean_lon)
+        print('Начальное предположение координат эпицентра',*initial_guess)
+        #Ура у нас есть начальное предположение для метода наименьших квадратов
         #теперь можно приступать к МНК
-        def mnk_function(event, stations, distances):
-            mnk_d = abs(geodist(event, stations) - distances)
-            return mnk_d
+        #Но сначала добавим в df столбец тру расстояний от станции до эпицентра
+        df['dist'] = self.distant_calculation(picks= Picks(p_time=df['P_time'],s_time=df['S_time'], id= df['station'],name= None))
+        print(df)
+
+        def mnk_function(event, dataframe):#координаты ивента в формате (лат, лон)
+            full_error : float = 0
+            for i in dataframe.index:
+                error: float = 0
+                error += geodist(event, (dataframe.at[i, 'lat'], dataframe.at[i, 'lon'])).km - dataframe.at[i,'dist']
+                full_error += error **2
+            return full_error
+
+        result = minimize(mnk_function, initial_guess,args=(df), method='BFGS', options={'disp': True})
+
+        if result.success:
+            event_lat, event_lon = result.x
+            print(f"Эпицентр найден")
+            return Event(coordinates=Point(latitude=event_lat, longitude=event_lon, altitude=0),time= None)
+        else:
+            print("Эпицентр не найден", result.message)
+
+
+
+
+
 
 
 
@@ -96,7 +118,7 @@ class Calculation:
 
 
 #test
-test_event = Event(coordinates = Point(52.34, 42.43, 0), time = 0)
+test_event = Event(coordinates = Point(51.34, 42.43, 0), time = 0)
 test_station = Station(coordinates= Point(70.38, 32.40, 0), id = 1, name = 'test')
 test_calculation = Calculation(vp = 3, vs = 2)
 print(test_calculation.Direct_task(test_station, test_event))
@@ -105,7 +127,7 @@ test_station2 = Station(coordinates= Point(53.38, 14.40, 0), id = 2, name = 'tes
 test_station3 = Station(coordinates= Point(23.38, 11.40, 0), id = 3, name = 'test3')
 test_stations = [test_station, test_station2, test_station3]
 test_peaks = [test_calculation.Direct_task(x, test_event) for x in test_stations]
-test_calculation.Inverse_task(test_stations, test_peaks)
+print(test_calculation.Inverse_task(test_stations, test_peaks))
 
 
 

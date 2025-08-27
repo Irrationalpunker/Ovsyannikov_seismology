@@ -2,6 +2,9 @@ from dataclasses import dataclass
 from geopy.distance import distance as geodist
 from geopy.location import Point
 import numpy
+import geopandas as gpd
+import pandas as pd
+from shapely.geometry import Point as shpp
 from scipy.optimize import minimize
 
 @dataclass
@@ -40,21 +43,46 @@ class Calculation:
 
 
     def Inverse_task(self, stations : [Station] , picks : [Picks]):
-        stations_points = []    # лист для координат станций
-        picks_p_times = []      # лист для первичных пиков
-        picks_s_times = []      # лист для вторичных пиков
-        distnces = []           # лист для дистанций по пикам
-        for i in range(len(stations)): #Важно, что станций должно быть столько же сколько и пиков, и в массивах они должны быть в одном порядке
-            stations_points.append(stations[i].coordiantes)
-            picks_p_times.append(picks.p_time)
-            picks_s_times.append(picks.s_time)
-            distnces.append(self.distant_calculation(picks[i]))
-        stations_points = numpy.array(stations_points)  # массив для координат станций
-        picks_p_times = numpy.array(picks_p_times)      # массив для первичных пиков
-        picks_s_times = numpy.array(picks_s_times)      # массив для вторичных пиков
-        distnces = numpy.array(distnces)                # массив для дистанций по пикам
+        data = {
+            'station' : [],
+            'lon' : [],
+            'lat' : [],
+            'P_time':[],
+            'S_time':[]
+        }
+        for i in range(len(stations)):
+            data['station'].append(stations[i].id)
+            data['lon'].append(stations[i].coordinates.longitude)
+            data['lat'].append(stations[i].coordinates.latitude)
+            data['P_time'].append(picks[i].p_time)
+            data['S_time'].append(picks[i].s_time)
+        df = pd.DataFrame(data)
+        print(df)
+        #теперь надо отсортировать по времени прихода волн
+        df = df.sort_values(by='P_time', ascending=True)
+        print(df)
+        df = df.reset_index(drop=True)
+        print(df)
+        #теперь нам нужно учесть вес каждой станции
+        length = len(df)
+        cloest_station = df.iloc[0]
+        cls_time = cloest_station['P_time']
+        #Координаты этой станции имеют вес 1, остальные будут иметь меньший вес.
+        mean_lon = 0
+        mean_lat = 0
+        for i in range(len(df)):
+            mean_lon += df.iloc[i]['lon']*(cls_time/df.iloc[i]['P_time'])
+            mean_lat += df.iloc[i]['lat'] * (cls_time / df.iloc[i]['P_time'])
+        mean_lat = mean_lat/len(df)
+        mean_lon = mean_lon / len(df)
+        initial_guess = (mean_lon, mean_lat)
+        print(initial_guess)
+        #Ура у нас есть начальное предположение для метода нименьших квадратов
+        #теперь можно приступать к МНК
+        def mnk_function(event, stations, distances):
+            mnk_d = abs(geodist(event, stations) - distances)
+            return mnk_d
 
-        initial_guess = 
 
 
 
@@ -69,9 +97,15 @@ class Calculation:
 
 #test
 test_event = Event(coordinates = Point(52.34, 42.43, 0), time = 0)
-test_station = Station(coordinates= Point(52.38, 42.40, 0), id = 1, name = 'test')
+test_station = Station(coordinates= Point(70.38, 32.40, 0), id = 1, name = 'test')
 test_calculation = Calculation(vp = 3, vs = 2)
 print(test_calculation.Direct_task(test_station, test_event))
+
+test_station2 = Station(coordinates= Point(53.38, 14.40, 0), id = 2, name = 'test2')
+test_station3 = Station(coordinates= Point(23.38, 11.40, 0), id = 3, name = 'test3')
+test_stations = [test_station, test_station2, test_station3]
+test_peaks = [test_calculation.Direct_task(x, test_event) for x in test_stations]
+test_calculation.Inverse_task(test_stations, test_peaks)
 
 
 

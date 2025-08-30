@@ -1,21 +1,7 @@
 from src.Calculations import Calculation
-from src.Event import Event
-from src.Station import Station
-from src.Picks import Picks
-from src.geopackager import Unpack
-from dataclasses import dataclass
-from geopy.distance import distance as geodist
 from geopy.location import Point
-import numpy
-import geopandas as gpd
-import pandas as pd
-from shapely.geometry import Point as shpp
-from scipy.optimize import minimize
 from src.Station import Station
-from src.Picks import Picks
 from src.Event import Event
-
-
 
 test_event = Event(coordinates=Point(51.34, 42.43, 0), time=0)
 test_station = Station(coordinates=Point(70.38, 32.40, 0), id=1, name='test')

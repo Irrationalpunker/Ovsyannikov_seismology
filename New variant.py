@@ -102,8 +102,16 @@ class Calculation:
 
 
 
-
-
+def package(stations_directory = None, picks_directory= None ):
+    if stations_directory != None:
+        stations_points = gpd.read_file(stations_directory)
+        stations_geometry = stations_points['geometry']
+        stations = []
+        for i in range(len(stations_geometry)):
+            stations.append(Station(coordinates= Point(latitude=stations_geometry[i].lat,longitude=stations_geometry[i].lon,altitude=0)))
+    if picks_directory != None:
+        picks= None
+    return( stations , picks )#Надо понимать в каком формате будут поставляться пики, чтобы их ывгружать
 
 
 
@@ -118,18 +126,29 @@ class Calculation:
 
 
 #test
-test_event = Event(coordinates = Point(51.34, 42.43, 0), time = 0)
-test_station = Station(coordinates= Point(70.38, 32.40, 0), id = 1, name = 'test')
-test_calculation = Calculation(vp = 3, vs = 2)
-print(test_calculation.Direct_task(test_station, test_event))
+DEBUGE1 = False
+#test
+if DEBUGE1 == True:
+    test_event = Event(coordinates=Point(51.34, 42.43, 0), time=0)
+    test_station = Station(coordinates=Point(70.38, 32.40, 0), id=1, name='test')
+    test_calculation = Calculation(vp=3, vs=2)
+    print(test_calculation.Direct_task(test_station, test_event))
+    test_station2 = Station(coordinates=Point(53.38, 14.40, 0), id=2, name='test2')
+    test_station3 = Station(coordinates=Point(23.38, 11.40, 0), id=3, name='test3')
+    test_stations = [test_station, test_station2, test_station3]
+    test_peaks = [test_calculation.Direct_task(x, test_event) for x in test_stations]
+    print(test_calculation.Inverse_task(test_stations, test_peaks))
 
-test_station2 = Station(coordinates= Point(53.38, 14.40, 0), id = 2, name = 'test2')
-test_station3 = Station(coordinates= Point(23.38, 11.40, 0), id = 3, name = 'test3')
-test_stations = [test_station, test_station2, test_station3]
-test_peaks = [test_calculation.Direct_task(x, test_event) for x in test_stations]
-print(test_calculation.Inverse_task(test_stations, test_peaks))
 
 
+#test
+DEBUGE2 = False
+#test
+if DEBUGE2 == True:
+    test_event = Event(coordinates=Point(51.34, 42.43, 0), time=0)
+    test_stations = (package('"C:/Users/Irrat/Desktop/pypoints.gpkg"'))
+    test_calculation = Calculation(vp= 6, vs= 5)
+    test_stations = test_calculation.Direct_task(test_stations, test_event)
 
 
 

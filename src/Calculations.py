@@ -1,75 +1,89 @@
 from dataclasses import dataclass
-from math import sqrt
-import numpy as np
+from geopy.distance import distance as geodist
+from geopy.location import Point
+import numpy
+import geopandas as gpd
+import pandas as pd
+from shapely.geometry import Point as shpp
 from scipy.optimize import minimize
-from .Picks import Picks
-from .Event import Event
-from .Station import Station
+from src.Station import Station
+from src.Picks import Picks
+from src.Event import Event
+
+
+
+
 @dataclass
-class Calculations:
-    vp : float
-    vs : float
+class Calculation:
+    vp: float
+    vs: float
+    #Вычисление расстояния по приходу волн (будем далее использовать ... часто?)
+    def distant_calculation(self, picks : Picks):
+        p_time = picks.p_time
+        s_time = picks.s_time
+        distant = (s_time - p_time)/(self.vp - self.vs)*self.vs*self.vp
+        return distant
+    def Direct_task(self, station : Station, event : Event):
+        distance = geodist(station.coordinates, event.coordinates)
+        p_time = distance.km/self.vp
+        s_time = distance.km/self.vs
+        return Picks(id = station.id, name = station.name, p_time = p_time, s_time = s_time)
 
-    def dist_calculation(self, pick : Picks):
-        tp = pick.P_time
-        ts = pick.S_time
-        d = (ts - tp)/(self.vp - self.vs)*self.vs*self.vp
-        return d
 
-    def inverse_task(self, stations : [Station], picks : [Picks]):
-
-        #Searching for event_coordinates
-        stc = [] #Stations_coordinates
-        std = [] #Stations_distances
-        ppt = [] #P_picks_time
-        spt = [] #S_picks_time
-        for j in range(len(picks)):
-            ppt.append(picks[j].P_time)
-            spt.append(picks[j].S_time)
-        ppt = np.array(ppt)
-        spt = np.array(spt)
-        #Получили вектора для времени пиков, можем использовать при нахождении t0
+    def Inverse_task(self, stations : [Station] , picks : [Picks]):
+        data = {
+            'station' : [],
+            'lat' : [],
+            'lon' : [],
+            'P_time':[],
+            'S_time':[]
+        }
         for i in range(len(stations)):
-            stc.append(stations[i].coordinates)
-            std.append(self.dist_calculation(picks[i]))
-        stc = np.array(stc)
-        std = np.array(std)
-        #Приготовили два вектора, готовые для поиска наименьших квадратов
-        def main_function(event_coords, stations_coords, ready_distance):
-            to_minimaize = np.sqrt(np.sum((event_coords-stations_coords)**2, axis=1)) - ready_distance
-            return np.sum(to_minimaize**2)
+            data['station'].append(stations[i].id)
+            data['lon'].append(stations[i].coordinates.longitude)
+            data['lat'].append(stations[i].coordinates.latitude)
+            data['P_time'].append(picks[i].p_time)
+            data['S_time'].append(picks[i].s_time)
+        df = pd.DataFrame(data)
+        print(df)
+        #теперь надо отсортировать по времени прихода волн
+        df = df.sort_values(by='P_time', ascending=True)
+        print(df)
+        df = df.reset_index(drop=True)
+        print(df)
+        #теперь нам нужно учесть вес каждой станции
+        length = len(df)
+        cloest_station = df.iloc[0]
+        cls_time = cloest_station['P_time']
+        #Координаты этой станции имеют вес 1, остальные будут иметь меньший вес.
+        mean_lon = 0
+        mean_lat = 0
+        for i in range(len(df)):
+            mean_lon += df.iloc[i]['lon']*(cls_time/df.iloc[i]['P_time'])
+            mean_lat += df.iloc[i]['lat'] * (cls_time / df.iloc[i]['P_time'])
+        mean_lat = mean_lat/len(df)
+        mean_lon = mean_lon / len(df)
+        initial_guess = (mean_lat, mean_lon)
+        print('Начальное предположение координат эпицентра',*initial_guess)
+        #Ура у нас есть начальное предположение для метода наименьших квадратов
+        #теперь можно приступать к МНК
+        #Но сначала добавим в df столбец тру расстояний от станции до эпицентра
+        df['dist'] = self.distant_calculation(picks= Picks(p_time=df['P_time'],s_time=df['S_time'], id= df['station'],name= None))
+        print(df)
 
-        initial_guess = [411320,8029540,6000] #Тут надо наверное что-то получше придумать
+        def mnk_function(event, dataframe):#координаты ивента в формате (лат, лон)
+            full_error : float = 0
+            for i in dataframe.index:
+                error: float = 0
+                error += geodist(event, (dataframe.at[i, 'lat'], dataframe.at[i, 'lon'])).km - dataframe.at[i,'dist']
+                full_error += error **2
+            return full_error
 
-        result = minimize(main_function, initial_guess, args=(stc, std))
-        d = np.sqrt(np.sum((np.array(result.x) - stc)**2, axis=1))
-        dp = d/self.vp
-        ds = d/self.vs
-        t0p = ppt - dp
-        t0s = spt - ds
-        t0 = np.median(np.concatenate((t0p, t0s)))
-        t0 = np.round(t0, 6)
-
-
+        result = minimize(mnk_function, initial_guess,args=(df), method='BFGS', options={'disp': True})
 
         if result.success:
-            return Event(coordinates= np.round(result.x, 4), t0= float(t0) )
-
+            event_lat, event_lon = result.x
+            print(f"Эпицентр найден")
+            return Event(coordinates=Point(latitude=event_lat, longitude=event_lon, altitude=0),time= None)
         else:
-            print("Ошибка/Error")
-            print(result)
-
-
-
-    def direct_task(self, stations : [Station], event : Event):
-        picks = []
-        for i in range(len(stations)):
-            dist = 0
-            for j in range(3):
-                dist += (stations[i].coordinates[j] - event.coordinates[j])**2
-            dist = sqrt(dist)
-            tp = event.t0 + dist / self.vp
-            ts = event.t0 + dist / self.vs
-            pick = Picks(id= stations[i].id, P_time= tp, S_time= ts)
-            picks.append(pick)
-        return picks
+            print("Эпицентр не найден", result.message)

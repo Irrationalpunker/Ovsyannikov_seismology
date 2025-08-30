@@ -1,4 +1,4 @@
-from .Calculations import Calculations
+from .Calculations import Calculation
 from .Event import Event
 from .Station import Station
 from .Picks import Picks

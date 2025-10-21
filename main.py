@@ -2,22 +2,21 @@ from src.Calculations import Calculation
 from geopy.location import Point
 from src.Station import Station
 from src.Event import Event
+from src.geopackager import Interpreter
+#
+# test_event = Event(coordinates=Point(51.34, 42.43, 0), time=0)
+# test_station = Station(coordinates=Point(70.38, 32.40, 0), id=1, name='test')
+# test_calculation = Calculation(vp=3, vs=2)
+# print(test_calculation.Direct_task(test_station, test_event))
+# test_station2 = Station(coordinates=Point(53.38, 14.40, 0), id=2, name='test2')
+# test_station3 = Station(coordinates=Point(23.38, 11.40, 0), id=3, name='test3')
+# test_stations = [test_station, test_station2, test_station3]
+# test_peaks = [test_calculation.Direct_task(x, test_event) for x in test_stations]
+# print(test_calculation.Inverse_task(test_stations, test_peaks))
 
-test_event = Event(coordinates=Point(51.34, 42.43, 0), time=0)
-test_station = Station(coordinates=Point(70.38, 32.40, 0), id=1, name='test')
-test_calculation = Calculation(vp=3, vs=2)
-print(test_calculation.Direct_task(test_station, test_event))
-test_station2 = Station(coordinates=Point(53.38, 14.40, 0), id=2, name='test2')
-test_station3 = Station(coordinates=Point(23.38, 11.40, 0), id=3, name='test3')
-test_stations = [test_station, test_station2, test_station3]
-test_peaks = [test_calculation.Direct_task(x, test_event) for x in test_stations]
-print(test_calculation.Inverse_task(test_stations, test_peaks))
-
-
-
-
-
-
+I1 = Interpreter()
+Stations = I1.s_gpx(r"C:\Users\Irrat\Desktop\2024-07.BBB-BSP.gpx")
+print(Stations)
 
 
 #
